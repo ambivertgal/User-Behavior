@@ -92,16 +92,18 @@ def calculate_rfm_scores(users, events):
     
     # Handle edge cases for qcut
     try:
-        # Calculate RFM scores (1-5 scale, 5 being best)
-        if len(rfm) >= 5:
-            rfm['R_score'] = pd.qcut(rfm['recency'], q=5, labels=[5,4,3,2,1], duplicates='drop')
-            rfm['F_score'] = pd.qcut(rfm['frequency'], q=5, labels=[1,2,3,4,5], duplicates='drop')
-            rfm['M_score'] = pd.qcut(rfm['monetary'], q=5, labels=[1,2,3,4,5], duplicates='drop')
-        else:
-            # For small datasets, use simple ranking
-            rfm['R_score'] = pd.cut(rfm['recency'], bins=5, labels=[5,4,3,2,1], include_lowest=True)
-            rfm['F_score'] = pd.cut(rfm['frequency'], bins=5, labels=[1,2,3,4,5], include_lowest=True)
-            rfm['M_score'] = pd.cut(rfm['monetary'], bins=5, labels=[1,2,3,4,5], include_lowest=True)
+        # Use a more robust approach with ranking
+        # Recency: Lower is better (more recent)
+        rfm['R_rank'] = rfm['recency'].rank(ascending=True, method='min')
+        rfm['R_score'] = pd.cut(rfm['R_rank'], bins=5, labels=[5,4,3,2,1], include_lowest=True)
+        
+        # Frequency: Higher is better
+        rfm['F_rank'] = rfm['frequency'].rank(ascending=False, method='min')
+        rfm['F_score'] = pd.cut(rfm['F_rank'], bins=5, labels=[1,2,3,4,5], include_lowest=True)
+        
+        # Monetary: Higher is better
+        rfm['M_rank'] = rfm['monetary'].rank(ascending=False, method='min')
+        rfm['M_score'] = pd.cut(rfm['M_rank'], bins=5, labels=[1,2,3,4,5], include_lowest=True)
         
         # Convert to numeric, handling any NaN values
         rfm['R_score'] = pd.to_numeric(rfm['R_score'], errors='coerce').fillna(3)
