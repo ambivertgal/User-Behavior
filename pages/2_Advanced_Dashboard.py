@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import warnings
+import random
 warnings.filterwarnings('ignore')
 
 # Page configuration
@@ -41,16 +42,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Import data generator from main app
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from Home import generate_sample_data
+
 @st.cache_data
 def load_data():
-    """Load and prepare data"""
+    """Generate sample data for the dashboard"""
     try:
-        users = pd.read_csv("users.csv", parse_dates=["registration_date"])
-        products = pd.read_csv("products.csv")
-        events = pd.read_csv("events.csv", parse_dates=["timestamp"])
+        users, products, events = generate_sample_data(num_users=1000, num_days=180)
         return users, products, events
-    except FileNotFoundError as e:
-        st.error(f"Error loading data: {e}")
+    except Exception as e:
+        st.error(f"Error generating data: {e}")
         return None, None, None
 
 def calculate_rfm_scores(users, events):

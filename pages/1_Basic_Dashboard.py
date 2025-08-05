@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import random
 
 # Page configuration
 st.set_page_config(
@@ -12,21 +13,26 @@ st.set_page_config(
     layout="wide"
 )
 
+# Import data generator from main app
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from Home import generate_sample_data
+
 @st.cache_data
 def load_data():
-    """Load data from CSV files"""
+    """Generate sample data for the dashboard"""
     try:
-        users = pd.read_csv("users.csv", parse_dates=["registration_date"])
-        products = pd.read_csv("products.csv")
-        events = pd.read_csv("events.csv", parse_dates=["timestamp"])
+        users, products, events = generate_sample_data(num_users=1000, num_days=180)
         return users, products, events
-    except FileNotFoundError as e:
-        st.error(f"Error loading data: {e}")
-        st.info("Please make sure the CSV files (users.csv, products.csv, events.csv) are in the same directory as this dashboard.")
+    except Exception as e:
+        st.error(f"Error generating data: {e}")
         return None, None, None
 
 # Load data
-users, products, events = load_data()
+with st.spinner("Loading data..."):
+    users, products, events = load_data()
 
 if users is None:
     st.stop()
