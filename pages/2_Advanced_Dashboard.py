@@ -78,93 +78,121 @@ def calculate_rfm_scores(users, events):
     if purchases.empty:
         return pd.DataFrame()
     
+    # Calculate monetary value correctly
+    purchases['monetary_value'] = purchases['price'] * purchases['quantity']
+    
     # Calculate RFM metrics
     rfm = purchases.groupby('user_id').agg({
         'timestamp': lambda x: (datetime.now() - x.max()).days,  # Recency
         'event_id': 'count',  # Frequency
-        'price': lambda x: (x * purchases.loc[x.index, 'quantity']).sum()  # Monetary
+        'monetary_value': 'sum'  # Monetary
     }).reset_index()
     
     rfm.columns = ['user_id', 'recency', 'frequency', 'monetary']
     
-    # Calculate RFM scores (1-5 scale, 5 being best)
-    rfm['R_score'] = pd.qcut(rfm['recency'], q=5, labels=[5,4,3,2,1])
-    rfm['F_score'] = pd.qcut(rfm['frequency'], q=5, labels=[1,2,3,4,5])
-    rfm['M_score'] = pd.qcut(rfm['monetary'], q=5, labels=[1,2,3,4,5])
-    
-    # Convert to numeric
-    rfm['R_score'] = rfm['R_score'].astype(int)
-    rfm['F_score'] = rfm['F_score'].astype(int)
-    rfm['M_score'] = rfm['M_score'].astype(int)
-    
-    # Calculate RFM score
-    rfm['RFM_score'] = rfm['R_score'] + rfm['F_score'] + rfm['M_score']
-    
-    # Segment customers
-    def segment_customers(row):
-        if row['RFM_score'] >= 13:
-            return 'Champions'
-        elif row['RFM_score'] >= 10:
-            return 'Loyal Customers'
-        elif row['RFM_score'] >= 8:
-            return 'At Risk'
-        elif row['RFM_score'] >= 6:
-            return 'Can\'t Lose'
+    # Handle edge cases for qcut
+    try:
+        # Calculate RFM scores (1-5 scale, 5 being best)
+        if len(rfm) >= 5:
+            rfm['R_score'] = pd.qcut(rfm['recency'], q=5, labels=[5,4,3,2,1], duplicates='drop')
+            rfm['F_score'] = pd.qcut(rfm['frequency'], q=5, labels=[1,2,3,4,5], duplicates='drop')
+            rfm['M_score'] = pd.qcut(rfm['monetary'], q=5, labels=[1,2,3,4,5], duplicates='drop')
         else:
-            return 'Lost'
-    
-    rfm['segment'] = rfm.apply(segment_customers, axis=1)
+            # For small datasets, use simple ranking
+            rfm['R_score'] = pd.cut(rfm['recency'], bins=5, labels=[5,4,3,2,1], include_lowest=True)
+            rfm['F_score'] = pd.cut(rfm['frequency'], bins=5, labels=[1,2,3,4,5], include_lowest=True)
+            rfm['M_score'] = pd.cut(rfm['monetary'], bins=5, labels=[1,2,3,4,5], include_lowest=True)
+        
+        # Convert to numeric, handling any NaN values
+        rfm['R_score'] = pd.to_numeric(rfm['R_score'], errors='coerce').fillna(3)
+        rfm['F_score'] = pd.to_numeric(rfm['F_score'], errors='coerce').fillna(3)
+        rfm['M_score'] = pd.to_numeric(rfm['M_score'], errors='coerce').fillna(3)
+        
+        # Calculate RFM score
+        rfm['RFM_score'] = rfm['R_score'] + rfm['F_score'] + rfm['M_score']
+        
+        # Segment customers
+        def segment_customers(row):
+            if row['RFM_score'] >= 13:
+                return 'Champions'
+            elif row['RFM_score'] >= 10:
+                return 'Loyal Customers'
+            elif row['RFM_score'] >= 8:
+                return 'At Risk'
+            elif row['RFM_score'] >= 6:
+                return 'Can\'t Lose'
+            else:
+                return 'Lost'
+        
+        rfm['segment'] = rfm.apply(segment_customers, axis=1)
+        
+    except Exception as e:
+        st.error(f"Error calculating RFM scores: {e}")
+        return pd.DataFrame()
     
     return rfm
 
 def perform_behavioral_clustering(events, users):
     """Perform K-means clustering on behavioral features"""
-    # Create behavioral features
-    user_behavior = events.groupby('user_id').agg({
-        'session_id': 'nunique',  # Number of sessions
-        'event_id': 'count',  # Total events
-        'product_id': 'nunique',  # Unique products viewed
-        'category': 'nunique'  # Unique categories viewed
-    }).reset_index()
-    
-    # Add purchase behavior
-    purchases = events[events['event_type'] == 'purchase']
-    if not purchases.empty:
-        purchase_behavior = purchases.groupby('user_id').agg({
-            'event_id': 'count',  # Number of purchases
-            'price': lambda x: (x * purchases.loc[x.index, 'quantity']).sum()  # Total spent
+    try:
+        # Create behavioral features
+        user_behavior = events.groupby('user_id').agg({
+            'session_id': 'nunique',  # Number of sessions
+            'event_id': 'count',  # Total events
+            'product_id': 'nunique',  # Unique products viewed
+            'category': 'nunique'  # Unique categories viewed
         }).reset_index()
-        purchase_behavior.columns = ['user_id', 'purchase_count', 'total_spent']
-        user_behavior = user_behavior.merge(purchase_behavior, on='user_id', how='left')
-    else:
-        user_behavior['purchase_count'] = 0
-        user_behavior['total_spent'] = 0
-    
-    # Fill NaN values
-    user_behavior = user_behavior.fillna(0)
-    
-    # Prepare features for clustering
-    features = ['session_id', 'event_id', 'product_id', 'category', 'purchase_count', 'total_spent']
-    X = user_behavior[features].values
-    
-    # Standardize features
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    
-    # Perform K-means clustering
-    kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
-    user_behavior['behavioral_cluster'] = kmeans.fit_predict(X_scaled)
-    
-    # Name clusters based on behavior patterns
-    cluster_names = {
-        0: 'Casual Browsers',
-        1: 'Active Shoppers', 
-        2: 'High-Value Customers',
-        3: 'Occasional Buyers'
-    }
-    user_behavior['behavioral_segment'] = user_behavior['behavioral_cluster'].map(cluster_names)
-    
-    return user_behavior
+        
+        # Add purchase behavior
+        purchases = events[events['event_type'] == 'purchase']
+        if not purchases.empty:
+            # Calculate monetary value correctly
+            purchases['monetary_value'] = purchases['price'] * purchases['quantity']
+            purchase_behavior = purchases.groupby('user_id').agg({
+                'event_id': 'count',  # Number of purchases
+                'monetary_value': 'sum'  # Total spent
+            }).reset_index()
+            purchase_behavior.columns = ['user_id', 'purchase_count', 'total_spent']
+            user_behavior = user_behavior.merge(purchase_behavior, on='user_id', how='left')
+        else:
+            user_behavior['purchase_count'] = 0
+            user_behavior['total_spent'] = 0
+        
+        # Fill NaN values
+        user_behavior = user_behavior.fillna(0)
+        
+        # Ensure we have enough data for clustering
+        if len(user_behavior) < 4:
+            st.warning("Not enough data for behavioral clustering. Need at least 4 users.")
+            return pd.DataFrame()
+        
+        # Prepare features for clustering
+        features = ['session_id', 'event_id', 'product_id', 'category', 'purchase_count', 'total_spent']
+        X = user_behavior[features].values
+        
+        # Standardize features
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        
+        # Perform K-means clustering
+        n_clusters = min(4, len(user_behavior))  # Ensure we don't have more clusters than data points
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        user_behavior['behavioral_cluster'] = kmeans.fit_predict(X_scaled)
+        
+        # Name clusters based on behavior patterns
+        cluster_names = {
+            0: 'Casual Browsers',
+            1: 'Active Shoppers', 
+            2: 'High-Value Customers',
+            3: 'Occasional Buyers'
+        }
+        user_behavior['behavioral_segment'] = user_behavior['behavioral_cluster'].map(cluster_names)
+        
+        return user_behavior
+        
+    except Exception as e:
+        st.error(f"Error performing behavioral clustering: {e}")
+        return pd.DataFrame()
 
 def calculate_conversion_metrics(events):
     """Calculate detailed conversion metrics"""
