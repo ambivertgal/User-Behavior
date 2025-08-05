@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom CSS - Dark mode compatible
 st.markdown("""
 <style>
     .main-header {
@@ -22,18 +22,29 @@ st.markdown("""
         margin-bottom: 2rem;
     }
     .feature-card {
-        background-color: #f8f9fa;
+        background-color: rgba(248, 249, 250, 0.1);
         padding: 1.5rem;
         border-radius: 0.5rem;
         border-left: 4px solid #1f77b4;
         margin: 1rem 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
     .metric-highlight {
-        background-color: #e8f4fd;
+        background-color: rgba(232, 244, 253, 0.1);
         padding: 1rem;
         border-radius: 0.5rem;
         border-left: 4px solid #ff7f0e;
         margin: 1rem 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .feature-card h3, .feature-card h4, .feature-card p, .feature-card li {
+        color: inherit;
+    }
+    .metric-highlight h4, .metric-highlight p, .metric-highlight li {
+        color: inherit;
+    }
+    .feature-card ul, .metric-highlight ul {
+        color: inherit;
     }
 </style>
 """, unsafe_allow_html=True)

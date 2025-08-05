@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS
+# Custom CSS - Dark mode compatible
 st.markdown("""
 <style>
     .main-header {
@@ -27,17 +27,28 @@ st.markdown("""
         margin-bottom: 1rem;
     }
     .metric-card {
-        background-color: #f0f2f6;
+        background-color: rgba(240, 242, 246, 0.1);
         padding: 1rem;
         border-radius: 0.5rem;
         border-left: 4px solid #1f77b4;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
     .insight-box {
-        background-color: #e8f4fd;
+        background-color: rgba(232, 244, 253, 0.1);
         padding: 1rem;
         border-radius: 0.5rem;
         border-left: 4px solid #ff7f0e;
         margin: 1rem 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .metric-card h3, .metric-card h4, .metric-card p, .metric-card li {
+        color: inherit;
+    }
+    .insight-box h4, .insight-box p, .insight-box li {
+        color: inherit;
+    }
+    .metric-card ul, .insight-box ul {
+        color: inherit;
     }
 </style>
 """, unsafe_allow_html=True)
